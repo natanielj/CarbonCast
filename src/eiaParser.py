@@ -5,9 +5,12 @@ from datetime import datetime, timedelta
 import time
 import sys
 import numpy as np
+from dotenv import load_dotenv
 
-# EIA API key. Insert your personal EIA API key here.
-EIA_API_KEY= "empty"
+load_dotenv()
+
+EIA_API_KEY = os.getenv("EIA_API_KEY") 
+
 
 # map EIA fuel types to source types
 EIA_SOURCE_MAP = {
