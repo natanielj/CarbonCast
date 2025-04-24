@@ -87,9 +87,17 @@ ISO_WITH_INCONSISTENT_DATA = {
     # "PNM":  (-123.50, 30.75, -101.50, 44.50),
     # "TEPC": (-115.25, 31.25, -110.00, 36.75),
 }
-
+# US_REGIONS = [
+#     "AECI", "AVA", "AVRN", "BANC", "CHPD", "CISO", "CPLW",
+#     "DEAA", "DOPD", "FMPP", "FPL", "GCPD", "GRID",
+#     "GVL", "GWA", "HGMA", "HST", "JEA", "LGEE",
+#     "NEVP", "NWMT", "NYIS", "PACE", "PACW", "PJM", "PSCO",
+#     "PSEI", "SC", "SCEG", "SCL", "SEC", "SEPA", "SPA", "SWPP",
+#     "TAL",  "TIDC", "TPWR",  "WACM", "WALC", "WAUW", "WWA"
+# ]  
 ISO_BOUNDING_BOX = {
 # US regions
+    "AECI": (-98.50, 34.25, -88.50, 41.75),    
     "CISO": (-124.75, 32, -113.5, 42), # wlon, slat, elon, nlat
     "PJM": (-91, 34.25, -73.5, 43),
     "ERCO": (-104.5, 25.25, -93.25, 36.5),
@@ -108,7 +116,6 @@ ISO_BOUNDING_BOX = {
     "SCEG": (-83.00, 31.50, -78.75, 35.25),
     "SPA":  (-98.00, 34.25, -89.00, 40.75),    
     "FPC":  (-86.50, 25.75, -80.00, 31.25),    
-    "AECI": (-98.50, 34.25, -88.50, 41.75),    
     "GCPD": (-120.50, 46.25, -118.50, 48.50),
     "GRID": (-119.75, 44.75, -118.25, 46.25),
     "IPCO": (-120.50, 41.50, -111.00, 47.25),
@@ -126,6 +133,19 @@ ISO_BOUNDING_BOX = {
     "SRP":  (-113.75, 32.00, -110.50, 34.50),    
     "WALC": (-124.25, 30.75, -105.00, 44.00),
     "TVA":  (-90.75, 31.75, -81.25, 38.00),
+
+# New regions identified in US_REGIONS compared to the original US_REGION_LIST:
+    # "AVA", "AVRN", "CPLW", "DEAA", "GVL", "GWA", "HGMA", "HST", "JEA", "SEC", "SEPA", "WAUW", "WWA"
+    # "AVA": (),
+    # "AVRN": (), 
+    # "CPLW": (), 
+    # "DEAA": (), 
+    # "GVL": (), 
+    # "GWA": (), 
+    # "HGMA": (), 
+    # "HST": (), 
+    # "JEA": (),
+    # "DOPD": (48.1, -119.7, 47.44, -120.28),
 
 # EU regions
 
@@ -163,6 +183,51 @@ ISO_BOUNDING_BOX = {
 US_REGION_LIST = ["AECI", "AZPS", "BPAT", "CISO", "DUK", "EPE", "ERCO", "FPL", 
                 "ISNE", "LDWP", "MISO", "NEVP", "NWMT", "NYIS", "PACE", "PJM", 
                 "SC", "SCEG", "SOCO", "TIDC", "TVA"] # add US regions here
+
+# US_REGION_LIST = [
+#     "AECI", 
+#     # "AVA", 
+#     # "AVRN", 
+#     "BANC", 
+#     # "CHPD", 
+#     "CISO", 
+#     # "CPLW",
+#     # "DEAA", 
+#     # "DOPD", 
+#     # "FMPP", # *
+#     "FPL", 
+#     "GCPD", 
+#     "GRID",
+#     # "GVL", 
+#     # "GWA", 
+#     # "HGMA", 
+#     # "HST", 
+#     # "JEA", 
+#     # "LGEE", # *
+#     "NEVP", 
+#     "NWMT", 
+#     "NYIS", 
+#     "PACE", 
+#     "PACW", 
+#     "PJM", 
+#     "PSCO",
+#     "PSEI", 
+#     "SC", 
+#     "SCEG", 
+#     "SCL", 
+#     # "SEC", 
+#     # "SEPA", 
+#     "SPA", 
+#     "SWPP",
+#     # "TAL",  # *
+#     "TIDC", 
+#     "TPWR",  
+#     "WACM", 
+#     "WALC", 
+#     # "WAUW", 
+#     # "WWA"
+# ]  # add US regions here
+
 EU_REGION_LIST = ["AL", "AT", "BE", "BG", "HR", "CZ", "DK", "EE", "FI", "FR", "DE", 
                   "GB", "GR", "HU", "IE", "IT", "LV", "LT", "NL", "PL", "PT", "RO", 
                   "RS", "SK", "SI", "ES", "SE", "CH"] # add EU regions here

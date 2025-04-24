@@ -34,13 +34,58 @@ import cisoSolarWindForecastParser as cisosolwndfcst
 REAL_TIME_FILE_DIR = "../real_time/"
 REAL_TIME_WEATHER_FILE_DIR = "../real_time/weather_data/"
 
-REGIONS_HAVING_ERRORS = ["SRP", "WACM"] # TODO: Need to check and fix this.
+REGIONS_HAVING_ERRORS = ["SRP", "WACM" ] # TODO: Need to check and fix this.
+NW_REGIONS_HAVING_ERRORS = ["AZPS", "BPAT", "CPLE", "DUK", "EPE", "ERCO", "FPC",  "IID", "IPCO", "ISNE", "LDWP", "MISO",  "PGE", "PNM", "SOCO", "SRP", "TEC", "TEPC", "TVA",] # TODO: Need to check and fix this.
+# US_REGIONS = ["CISO"] # old old
 
-US_REGIONS = ["AECI", "AZPS", "BPAT", "CISO", "DUK", "EPE", "ERCO", "FPL", 
-                "ISNE", "LDWP", "MISO", "NEVP", "NWMT", "NYIS", "PACE", "PJM", 
-                "SC", "SCEG", "SOCO", "TIDC", "TVA"] # add US regions here
+# US_REGIONS = ["AECI", "AZPS", "BPAT", "CISO", "DUK", "EPE", "ERCO", "FPL", 
+#                 "ISNE", "LDWP", "MISO", "NEVP", "NWMT", "NYIS", "PACE", "PJM", 
+#                 "SC", "SCEG", "SOCO", "TIDC", "TVA"] # add US regions here # old
 
-# US_REGIONS = ["CISO"]
+
+US_REGIONS = [
+    "AECI", 
+    # "AVA", 
+    # "AVRN", 
+    "BANC", 
+    # "CHPD", 
+    "CISO", 
+    # "CPLW",
+    # "DEAA", 
+    # "DOPD", 
+    # "FMPP", 
+    "FPL", 
+    "GCPD", 
+    "GRID",
+    # "GVL", 
+    # "GWA", 
+    # "HGMA", 
+    # "HST", 
+    # "JEA", 
+    # "LGEE",
+    "NEVP", 
+    "NWMT", 
+    "NYIS", 
+    "PACE", 
+    "PACW", 
+    "PJM", 
+    "PSCO",
+    "PSEI", 
+    "SC", 
+    "SCEG", 
+    "SCL", 
+    # "SEC", 
+    # "SEPA", 
+    "SPA", 
+    "SWPP",
+    # "TAL",  
+    "TIDC", 
+    "TPWR",  
+    "WACM", 
+    "WALC", 
+    # "WAUW", 
+    # "WWA"
+]  # add US regions here
 
 EU_REGIONS = [] # add EU regions here
 
@@ -59,7 +104,7 @@ def fetchElectricityData(continent, baList, startDate, creationTimeInUTC, versio
             if (fetchedDataset.empty):
                 regionsWithNoData.append(balAuth)
                 # [DM] TODO: Error check if all zeros/Nan are returned by EIA
-            else:
+            else: 
                 print("Electricity data fetched")
                 # clean electricity data
                 fetchedDataset = pd.read_csv(csvFile, header=0, parse_dates=["UTC time"], index_col=["UTC time"])

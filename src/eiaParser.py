@@ -9,13 +9,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-EIA_API_KEY = os.getenv("EIA_API_KEY") 
+EIA_API_KEY = os.getenv("EIA-key") 
 
+
+
+# OTHER_SOURCES = {"UES", "SNB", "OTH"} # list of other sources in EIA data
+# EIA_OTHER_SOURCE_LIST = frozenset(OTHER_SOURCES) # list of other sources in EIA data
 
 # map EIA fuel types to source types
 EIA_SOURCE_MAP = {
-    "OTH": "other", 
+    "OTH":"other",
+    "SNB": "sol-w/int-bat", #solar with integrated battery
+    "UES": "unk_src", #unkown source
     "COL": "coal",
+    "BAT": "battery",
     "SUN": "solar",
     "NG": "nat_gas",
     "NUC": "nuclear",
@@ -30,10 +37,21 @@ EIA_SOURCE_MAP = {
 #                      "GCPD", "GRID", "IPCO", "NEVP", "NWMT", "PACE", "PACW", "PGE", "PSCO", "PSEI", "SCL", 
 #                      "TPWR", "WACM", "SOCO", "AZPS", "EPE", "PNM", "SRP", "TEPC", "WALC", "TVA"]
 
-EIA_BAL_AUTH_LIST = ["AECI", "AZPS", "BPAT", "CISO", "DUK", "EPE", "ERCOT", "FPC", 
-                "FPL", "GRID", "IPCO", "ISNE", "LDWP", "MISO", "NEVP", "NWMT", "NYISO", 
-                "PACE", "PACW", "PJM", "PSCO", "PSEI", "SC", "SCEG", "SOCO", "SPA", "SRP", 
-                "SWPP", "TIDC", "TVA", "WACM", "WALC"]
+# EIA_BAL_AUTH_LIST = ["AECI", "AZPS", "BPAT", "CISO", "DUK", "EPE", "ERCOT", "FPC", 
+#                 "FPL", "GRID", "IPCO", "ISNE", "LDWP", "MISO", "NEVP", "NWMT", "NYISO", 
+#                 "PACE", "PACW", "PJM", "PSCO", "PSEI", "SC", "SCEG", "SOCO", "SPA", "SRP", 
+#                 "SWPP", "TIDC", "TVA", "WACM", "WALC"]
+
+# Updated list of balancing authorities to get data for
+EIA_BAL_AUTH_LIST = [
+    "AEC", "AECI", "AVA", "AVRN", "AZPS", "BANC", "BPAT", "CHPD", "CISO", "CPLE", 
+    "CPLW", "DEAA", "DOPD", "DUK", "EEI", "EPE", "ERCO", "FMPP", "FPC", "FPL", 
+    "GCPD", "GLHB", "GRID", "GRIF", "GRMA", "GVL", "GWA", "HGMA", "HST", "IID", 
+    "IPCO", "ISNE", "JEA", "LDWP", "LGEE", "MISO", "NEVP", "NSB", "NWMT", "NYIS", 
+    "OVEC", "PACE", "PACW", "PGE", "PJM", "PNM", "PSCO", "PSEI", "SC", "SCEG", 
+    "SCL", "SEC", "SEPA", "SOCO", "SPA", "SRP", "SWPP", "TAL", "TEC", "TEPC", 
+    "TIDC", "TPWR", "TVA", "WACM", "WALC", "WAUW", "WWA", "YAD"
+]
 
 # get production data by source type from EIA API
 def getProductionDataBySourceTypeDataFromEIA(ba, curDate, curEndDate):
@@ -43,11 +61,11 @@ def getProductionDataBySourceTypeDataFromEIA(ba, curDate, curEndDate):
 
     print(ba)
     API_URL="https://api.eia.gov/v2/electricity/rto/fuel-type-data/data?api_key="
-    API_URL_SORT_PARAMS="sort[0][column]=period&sort[0][direction]=asc&sort[1][column]=fueltype&sort[1][direction]=desc"
+    API_URL_SORT_PARAMS= "sort[0][column]=period&sort[0][direction]=asc&sort[1][column]=fueltype&sort[1][direction]=desc"
     API_URL_SUFFIX="&frequency=hourly&data[]=value&facets[respondent][]={}&"+API_URL_SORT_PARAMS+"&start={}&end={}&offset=0&length=5000"
 
     startDate = curDate+"T00"
-    endDate = curEndDate+"T23"
+    endDate = curEndDate+"T00"
     print(startDate, endDate)
     URL = API_URL+EIA_API_KEY+API_URL_SUFFIX.format(ba, startDate, endDate)
     resp = requests.get(URL)
@@ -134,7 +152,7 @@ def getElectricityProductionDataFromEIA(balAuth, startDate, numDays, DAY_JUMP):
     electricitySources = set()
     numSources = 0
     for days in range(0, numDays, DAY_JUMP):
-        endDateObj = startDateObj + timedelta(days=DAY_JUMP-1)
+        endDateObj = startDateObj + timedelta(days=DAY_JUMP)
         endDate = endDateObj.strftime("%Y-%m-%d")
         data = getProductionDataBySourceTypeDataFromEIA(balAuth, startDate, endDate)
         if (len(data) == 0):
