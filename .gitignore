@@ -1,0 +1,7 @@
+src/CarbonCastAPI/__pycache__/
+src/CarbonCastAPI/CarbonCastAPI/__pycache__/
+src/CarbonCastAPI/CarbonCastRESTAPI/__pycache__/
+src/CarbonCastAPI/CarbonCastRESTAPI/migrations/__pycache__/
+src/CarbonCastAPI/db.sqlite3
+/data_old (v2.1)/
+/data_old(v3.1)/

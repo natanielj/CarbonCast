@@ -8,6 +8,8 @@ Version: 3.0 <br>
 Authors: Diptyaroop Maji, Prashant Shenoy, Ramesh K Sitaraman <br>
 Affiliation: University of Massachusetts, Amherst
 
+<b>CarbonCast v3.0, which can provide forecasts in real-time, is now in the testing phase and can be found [here](https://github.com/carbonfirst/CarbonCast/tree/v3.0_real_time_service). Please feel free to use and report any issues. We are working to release it in the main branch soon.</b>
+
 
 <!-- ## CarbonCast Architecture
 ### First tier
@@ -108,7 +110,8 @@ Run ```./installDependencies.sh``` for installing the dependecies.<br>
 Then, run ```source ~/.bashrc```.
 * wgrib2 (for weather data) should be correctly installed after the above command. If you need to install it from scratch, please refer 
 [here](https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/compile_questions.html) for compilation/installation details. 
-If you are using MacOS and having trouble compiling wgrib2, please refer to [this](https://theweatherguy.net/blog/weather-links-info/how-to-install-and-compile-wgrib2-on-mac-os-10-14-6-mojave/) article.
+If you are using MacOS and having trouble compiling wgrib2, please refer to [this](https://theweatherguy.net/blog/weather-links-info/how-to-install-and-compile-wgrib2-on-mac-os-10-14-6-mojave/) article. Once wgrib2 is installed, go to the grib2 directory and run the following command to access wgrib2 from anywhere in the terminal:
+```cp -rfv wgrib2/wgrib2 /usr/local/bin/wgrib2```
 <!-- * ``` pip3 install numpy, matplotlib, sklearn, datetime, matplotlib ``` -->
 
 ### 4.2 Running CarbonCast using saved models/Reproducing results from paper:
