@@ -651,18 +651,41 @@ def getForecasts(model, history, trainWindowHours, numFeatures, weatherData):
     return yhat, input_x
 
 def getForecastsInRealTime(model, history, numFeatures, weatherData):
-    # flatten data
-    data = np.array(history, dtype=np.float64)
-    data = np.reshape(data, (data.shape[0], 1))
-    # retrieve last observations for input data
-    input_x = data[-TRAINING_WINDOW_HOURS:]
-    input_x = np.append(input_x, weatherData, axis=1)
-    # reshape into [1, n_input, num_features]
-    input_x = input_x.reshape((1, len(input_x), numFeatures))
-    yhat = model.predict(input_x, verbose=0)
-    # we only want the vector forecast
-    yhat = yhat[0]
+    processed = [np.asarray(item, dtype=np.float64).ravel() for item in history]
+    lengths = [arr.shape[0] for arr in processed]
+    if len(set(lengths)) != 1:
+        raise ValueError(f"history entries have mismatched lengths: {lengths}")
+    data = np.vstack(processed)  # shape = (timesteps, feature_dim)
+
+    # ——— 2) Grab the last TRAINING_WINDOW_HOURS rows as model input ———
+    input_x = data[-TRAINING_WINDOW_HOURS:, :]
+
+    # ——— 3) Append weather columns if provided ———
+    if weatherData is not None:
+        wd = np.asarray(weatherData, dtype=np.float64)
+        # ensure shape is (TRAINING_WINDOW_HOURS, n_weather_feats)
+        if wd.ndim == 1:
+            wd = wd.reshape(-1, 1)
+        input_x = np.concatenate([input_x, wd], axis=1)
+
+    # ——— 4) Reshape to [1, time_steps, total_features] ———
+    input_x = input_x.reshape((1, input_x.shape[0], numFeatures))
+
+    # ——— 5) Predict & return the 1-D forecast vector ———
+    yhat = model.predict(input_x, verbose=0)[0]
     return yhat
+    # flatten data
+    # data = np.array(history, dtype=np.float64)
+    # data = np.reshape(data, (data.shape[0], 1))
+    # # retrieve last observations for input data
+    # input_x = data[-TRAINING_WINDOW_HOURS:]
+    # input_x = np.append(input_x, weatherData, axis=1)
+    # # reshape into [1, n_input, num_features]
+    # input_x = input_x.reshape((1, len(input_x), numFeatures))
+    # yhat = model.predict(input_x, verbose=0)
+    # # we only want the vector forecast
+    # yhat = yhat[0]
+    # return yhat
 
 def featureImportance(seq, model, features, testDates):
     # print(seq.shape)
@@ -863,23 +886,51 @@ def getUnscaledForecastsAndForecastAccuracy(testData, testDates, predictedData, 
 
 def writeRealTimeCIForecastsToFile(formattedTestDates, unscaledPredictedData, outFileName,
                                    creationTimeInUTC, version):
-    data = []
-    for i in range(len(unscaledPredictedData)):
-        row = []
-        row.append(str(formattedTestDates[i]))
-        row.append(creationTimeInUTC)
-        row.append(version)
-        row.append(str(unscaledPredictedData[i]))
-        data.append(row)
-    writeMode = "w"
-    print("Writing to ", outFileName, "...")
-    fields = ["UTC time", "creation_time (UTC)", "version", "forecasted_avg_carbon_intensity"]
+    # data = []
+    # for i in range(len(unscaledPredictedData)):
+    #     row = []
+    #     row.append(str(formattedTestDates[i]))
+    #     row.append(creationTimeInUTC)
+    #     row.append(version)
+    #     row.append(str(unscaledPredictedData[i]))
+    #     data.append(row)
+    # writeMode = "w"
+    # print("Writing to ", outFileName, "...")
+    # fields = ["UTC time", "creation_time (UTC)", "version", "forecasted_avg_carbon_intensity"]
     
-    with open(outFileName, writeMode) as csvfile: 
-        csvwriter = csv.writer(csvfile)   
-        csvwriter.writerow(fields) 
-        csvwriter.writerows(data)
+    # with open(outFileName, writeMode) as csvfile: 
+    #     csvwriter = csv.writer(csvfile)   
+    #     csvwriter.writerow(fields) 
+    #     csvwriter.writerows(data)
+    # return
+    data = []
+    # Pair each date with its forecast; zip will stop at the shorter list
+    for date, forecast in zip(formattedTestDates, unscaledPredictedData):
+        data.append([
+            str(date),
+            creationTimeInUTC,
+            version,
+            str(forecast)
+        ])
+
+    # Warn if there were more forecasts than dates
+    extra = len(unscaledPredictedData) - len(formattedTestDates)
+    if extra > 0:
+        print(f"Warning: {extra} extra CI forecast entries without corresponding dates; ignoring extras.")
+
+    print("Writing to", outFileName, ".")
+    fields = [
+        "UTC time",
+        "creation_time (UTC)",
+        "version",
+        "forecasted_avg_carbon_intensity"
+    ]
+    with open(outFileName, "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(fields)
+        writer.writerows(data)
     return
+
 
 if __name__ == "__main__":
     print("CarbonCast second tier. Refer github repo for regions & sources.")

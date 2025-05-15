@@ -19,8 +19,8 @@ EIA_API_KEY = os.getenv("EIA-key")
 # map EIA fuel types to source types
 EIA_SOURCE_MAP = {
     "OTH":"other",
-    "SNB": "sol-w/int-bat", #solar with integrated battery
-    "UES": "unk_src", #unkown source
+    # "SNB": "sol-w/int-bat", #solar with integrated battery
+    # "UES": "unk_src", #unkown source
     "COL": "coal",
     "BAT": "battery",
     "SUN": "solar",

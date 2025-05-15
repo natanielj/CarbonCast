@@ -243,109 +243,98 @@ def runFirstTierInRealTime(configFileName, regionList, startDate, electricityDat
     global TRAINING_WINDOW_HOURS
     global PREDICTION_WINDOW_HOURS
     global MODEL_SLIDING_WINDOW_LEN
-
-    firstTierConfig = {}
-
     with open(configFileName, "r") as configFile:
         firstTierConfig = json.load(configFile)
-        # print(configurationData)
-
     TRAINING_WINDOW_HOURS = firstTierConfig["TRAINING_WINDOW_HOURS"]
     PREDICTION_WINDOW_HOURS = firstTierConfig["PREDICTION_WINDOW_HOURS"]
     MODEL_SLIDING_WINDOW_LEN = firstTierConfig["MODEL_SLIDING_WINDOW_LEN"]
 
     aggregatedForecastFileNames = {}
-
     for region in regionList:
         print("CarbonCast: ANN model for region:", region)
+        # Region-specific settings
         regionConfig = firstTierConfig[region]
         sourceList = regionConfig["SOURCES"]
-        sourceColList = regionConfig["SOURCE_COL"]
-        weatherForecastInFileName = realTimeWeatherFileDir+region+"/"+region+"_weather_forecast_"+str(startDate)+".csv"
-        SAVED_MODEL_LOCATION = firstTierConfig["SAVED_MODEL_LOCATION"]+region+"/"
-        aggregatedForecastFileNames[region] = realTimeFileDir+region+"/"+region+"_96hr_forecasts_"+str(startDate)+".csv"
-        partialSourceProductionForecast = None
-        sourceIdx = 0
-        inFileName = realTimeFileDir+region+"/"+region+"_"+str(electricityDataDate)+".csv"
-        outFileNamePrefix = realTimeFileDir+region+"/fuel_forecast/"+region+"_ANN"
-        for source in sourceList:
-            sourceCol = sourceColList[sourceIdx]+2 # +2 because we have now added creation time & version for real-time files
-            partialSourceProductionForecastAvailable = True if solWindFcstData is not None else False # partial forecasts only for SOLAR and WIND
+        sourceCols = regionConfig["SOURCE_COL"]
+        inFileName = f"{realTimeFileDir}{region}/{region}_{electricityDataDate}.csv"
+        weatherFile = f"{realTimeWeatherFileDir}{region}/{region}_weather_forecast_{startDate}.csv"
+        SAVED_MODEL_LOCATION = f"{firstTierConfig['SAVED_MODEL_LOCATION']}{region}/"
+        output96h = f"{realTimeFileDir}{region}/{region}_96hr_forecasts_{startDate}.csv"
+        aggregatedForecastFileNames[region] = output96h
+
+        for idx, source in enumerate(sourceList):
             print(inFileName)
-            print(weatherForecastInFileName)
-            isRenewableSource = False
-            numFeatures = firstTierConfig["NUM_FEATURES"]
-            numWeatherFeatures = 0
-            if (source == "SOLAR" or source == "WIND" or source == "HYDRO"):
-                isRenewableSource = True
-            if (isRenewableSource == True):
-                numWeatherFeatures = firstTierConfig["NUM_WEATHER_FEATURES"]
-                numFeatures += numWeatherFeatures
+            print(weatherFile)
+            colIdx = sourceCols[idx] + 2  # adjust for added creation_time & version columns
+            isRenewable = source in ("SOLAR", "WIND", "HYDRO")
 
-            print("No. of features = ", numFeatures)
-
-            outFileName = outFileNamePrefix + "_" + source.lower() + "_" + str(startDate) + ".csv"
-            
-
-            print("Initializing...")
-            dataset, testDates, weatherDataset = initializeInRealTime(inFileName, weatherForecastInFileName, 
-                                                                    sourceCol, isRenewableSource)
-            # bufferPeriod is for the last test date, if prediction period is beyond 24 hours
-            print("***** Initialization done *****")
-
-            testData = np.array(dataset.values[:, sourceCol:sourceCol+1])
-            testData = fillMissingData(testData)
-            wTestData = np.array(weatherDataset.values)
-            wTestData = fillMissingData(wTestData)
-            # print(testData.shape, wTestData.shape)
-            
-
-            print("Scaling data...")
-            minMaxFeatureFileName = SAVED_MODEL_LOCATION+region+"_"+source+"_min_max_values.txt"
-            ftMin, ftMax, wFtMin, wFtMax = common.getMinMaxFeatureValues(minMaxFeatureFileName, 
-                                                                         areForecastsFeatures=isRenewableSource)
+            # Initialize and scale data
+            dataset, testDates, weatherDataset = initializeInRealTime(
+                inFileName, weatherFile, colIdx, isRenewable
+            )
+            testData = fillMissingData(np.array(dataset.values[:, colIdx:colIdx+1]))
+            wData = fillMissingData(np.array(weatherDataset.values))
+            ftMin, ftMax, wMin, wMax = common.getMinMaxFeatureValues(
+                f"{SAVED_MODEL_LOCATION}{region}_{source}_min_max_values.txt",
+                areForecastsFeatures=isRenewable
+            )
             testData = common.scaleTestDataWithTrainingValues(testData, ftMin, ftMax)
-            wTestData= common.scaleTestDataWithTrainingValues(wTestData, wFtMin, wFtMax)
-            if (partialSourceProductionForecastAvailable and (source == "SOLAR" or source == "WIND")):
-                print("Partial forecast available for source: ", source)
-                dataset["avg_"+source.lower()+"_production_forecast"] = solWindFcstData["avg_"+source.lower()+"_production_forecast"].values
-                partialSourceProductionForecast = dataset["avg_"+source.lower()+"_production_forecast"].iloc[-24:].values
-                partialSourceProductionForecast = common.scaleColumn(partialSourceProductionForecast, 
-                        ftMin[DEPENDENT_VARIABLE_COL], ftMax[DEPENDENT_VARIABLE_COL])
-                # print(partialSourceProductionForecast, ftMax[DEPENDENT_VARIABLE_COL], ftMin[DEPENDENT_VARIABLE_COL])
-            print("***** Data scaling done *****")
+            wData = common.scaleTestDataWithTrainingValues(wData, wMin, wMax)
 
-            ######################## START #####################                    
-            savedModelName = SAVED_MODEL_LOCATION+"/"+region+"_"+source.upper()+"_best_model_ann.h5"
-            model = load_model(savedModelName)
+            # Handle partial SOLAR/WIND forecasts
+            partialForecast = None
+            if solWindFcstData is not None and source in ("SOLAR", "WIND"):
+                print("Partial forecast available for source:", source)
+                col_name = f"avg_{source.lower()}_production_forecast"
+                dataset[col_name] = np.nan
+                vals = solWindFcstData[col_name].values
+                n_vals = len(vals)
+                dataset.loc[dataset.index[-n_vals:], col_name] = vals
+                last24 = dataset[col_name].iloc[-24:].values
+                partialForecast = common.scaleColumn(
+                    last24, ftMin[DEPENDENT_VARIABLE_COL], ftMax[DEPENDENT_VARIABLE_COL]
+                )
 
-            history = testData[-TRAINING_WINDOW_HOURS:, :]
-            weatherData = wTestData[-PREDICTION_WINDOW_HOURS:, :]
-            history = history.tolist()
-            predictedData = getSourceProductionForecastsInRealTime(model, history, testData, numFeatures, wTestData, 
-                        weatherData, partialSourceProductionForecast, isRenewableSource)
-            print("***** Forecast done *****")
+            # Load model
+            model = load_model(f"{SAVED_MODEL_LOCATION}/{region}_{source.upper()}_best_model_ann.h5")
+            history = testData[-TRAINING_WINDOW_HOURS:].tolist()
 
-            predictedData = predictedData.astype(np.float64)
-            # print("PredictedData shape: ", predictedData.shape)
-            predicted = np.reshape(predictedData, predictedData.shape[0]*predictedData.shape[1])
-            # print("predicted.shape: ", predicted.shape)
-            unscaledPredictedData = common.inverseDataScaling(predicted, 
-                                                              ftMax[DEPENDENT_VARIABLE_COL], 
-                                                              ftMin[DEPENDENT_VARIABLE_COL])
-            
-            writeRealTimeSourceProductionForecastsToFile(testDates, unscaledPredictedData,
-                                                source, outFileName, creationTimeInUTC, version)
-            
-            ######################## END #####################
-            sourceIdx += 1
+            # Determine feature count
+            numFeatures = firstTierConfig["NUM_FEATURES"]
+            if isRenewable:
+                numFeatures += firstTierConfig.get("NUM_WEATHER_FEATURES", 0)
 
-            print("####################", region, source, " done ####################\n\n")
-        print("Source production forecast for region: ", region, " done.")
-        aggregateDataAndGenerateForecastFile(firstTierConfig, sourceList, weatherForecastInFileName,
-                                             outFileNamePrefix, aggregatedForecastFileNames[region], 
-                                             isRealTime=True, startDate=startDate)
+            # Predict
+            yhat = getSourceProductionForecastsInRealTime(
+                model,
+                history,
+                testData,
+                numFeatures,
+                wTestData=wData,
+                weatherData=None,
+                partialSourceProductionForecast=partialForecast,
+                isRenewableSource=isRenewable
+            )
+
+            # Inverse scale and write output
+            unscaled = common.inverseDataScaling(
+                yhat.flatten(), ftMax[DEPENDENT_VARIABLE_COL], ftMin[DEPENDENT_VARIABLE_COL]
+            )
+            outFile = f"{realTimeFileDir}{region}/fuel_forecast/{region}_ANN_{source.lower()}_{startDate}.csv"
+            writeRealTimeSourceProductionForecastsToFile(
+                testDates, unscaled, source, outFile, creationTimeInUTC, version
+            )
+            print(f"#################### {region} {source} done ####################\n")
+
+        # Aggregate across sources
+        aggregateDataAndGenerateForecastFile(
+            firstTierConfig, sourceList, weatherFile,
+            f"{realTimeFileDir}{region}/fuel_forecast/{region}_ANN", output96h,
+            isRealTime=True, startDate=startDate
+        )
     return aggregatedForecastFileNames
+
+
 
 def aggregateDataAndGenerateForecastFile(firstTierConfig, sourceList, weatherForecastFile,
                                          sourceForecastFileNamePrefix, aggregatedForecastFileName,
@@ -594,43 +583,180 @@ def getSourceProductionForecastsInRealTime(model, history, testData,
                             partialSourceProductionForecast = None,
                             isRenewableSource=False):
     # walk-forward validation over each day
-    print("Testing...")
-    predictions = list()
-    weatherIdx = 0
-    for i in range(0, ((len(testData)//24))):
-        dayAheadPredictions = list()
-        tempHistory = history.copy()
-        currentDayHours = i* MODEL_SLIDING_WINDOW_LEN
-        for j in range(0, PREDICTION_WINDOW_HOURS, 24):
-            if (isRenewableSource is True):
-                yhat_sequence = getForecastsInRealTime(model, tempHistory, 
-                            numFeatures, weatherData[j:j+24])
-            else:
-                yhat_sequence = getForecastsInRealTime(model, tempHistory, 
-                            numFeatures, weatherData[j:j+24, :5])
-            # add current prediction to history for predicting the next day
-            if (j==0 and partialSourceProductionForecast is not None):
-                for k in range(24):
-                    yhat_sequence[k] = partialSourceProductionForecast[currentDayHours+k]
-            dayAheadPredictions.extend(yhat_sequence)
-            for k in range(24):
-                tempHistory[k] = yhat_sequence[k]
-        # get real observation and add to history for predicting the next day
-        history.extend(testData[currentDayHours:currentDayHours+MODEL_SLIDING_WINDOW_LEN, :].tolist())
-        predictions.append(dayAheadPredictions)
-        if (wTestData is not None):
-            weatherData = wTestData[weatherIdx:weatherIdx+PREDICTION_WINDOW_HOURS, :]
-            weatherIdx +=PREDICTION_WINDOW_HOURS
+    if weatherData is None:
+        if wTestData is not None:
+            weatherData = wTestData
+        else:
+            # No weather at all: make an empty 2D array with correct rows
+            weatherData = np.empty((len(testData), 0), dtype=np.float64)
 
-    # evaluate predictions days for each day
-    predictedData = np.array(predictions, dtype=np.float64)
+    print("Testing...")
+    predictions = []
+    weatherIdx = 0
+
+    # How many full days of testData we have
+    numDays = len(testData) // 24
+
+    for day in range(numDays):
+        dayAheadPredictions = []
+        tempHistory = history.copy()
+        baseHour = day * MODEL_SLIDING_WINDOW_LEN
+
+        # Within each day, we step in 24-hour blocks up to PREDICTION_WINDOW_HOURS
+        for offset in range(0, PREDICTION_WINDOW_HOURS, 24):
+            if isRenewableSource:
+                window = weatherData[offset:offset + 24]
+                yhat_seq = getForecastsInRealTime(model,
+                                                  tempHistory,
+                                                  numFeatures,
+                                                  window)
+            else:
+                # non-renewables only look at the first 5 weather features
+                window = weatherData[offset:offset + 24, :5]
+                yhat_seq = getForecastsInRealTime(model,
+                                                  tempHistory,
+                                                  numFeatures,
+                                                  window)
+
+            # For the first 24h block, override with partial forecasts if given
+            if day == 0 and offset == 0 and partialSourceProductionForecast is not None:
+                for h in range(24):
+                    # on day 0, baseHour == 0, so we can just index [h]
+                    yhat_seq[h] = partialSourceProductionForecast[h]
+                    dayAheadPredictions.extend(yhat_seq)
+
+                    # Roll the history window forward by injecting this block’s outputs
+                    for h in range(24):
+                        tempHistory[h] = yhat_seq[h]
+
+        # After forecasting this day, add the next real observation slice into history
+        start_obs = baseHour
+        end_obs = baseHour + MODEL_SLIDING_WINDOW_LEN
+        history.extend(testData[start_obs:end_obs, :].tolist())
+        predictions.append(dayAheadPredictions)
+
+        # Advance the weatherData pointer for the next day
+        if wTestData is not None:
+            weatherData = wTestData[weatherIdx:weatherIdx + PREDICTION_WINDOW_HOURS]
+            weatherIdx += PREDICTION_WINDOW_HOURS
+
+    # Finally, convert list-of-lists to a 2D NumPy array
+    target_len = PREDICTION_WINDOW_HOURS
+    cleaned = []
+    for day_preds in predictions:
+        if len(day_preds) < target_len:
+            day_preds = day_preds + [np.nan] * (target_len - len(day_preds))
+        elif len(day_preds) > target_len:
+            day_preds = day_preds[:target_len]
+        cleaned.append(day_preds)
+
+    predictedData = np.array(cleaned, dtype=np.float64)
     return predictedData
+    # print("Testing...")
+    # predictions = list()
+    # weatherIdx = 0
+    # for i in range(0, ((len(testData)//24))):
+    #     dayAheadPredictions = list()
+    #     tempHistory = history.copy()
+    #     currentDayHours = i* MODEL_SLIDING_WINDOW_LEN
+    #     for j in range(0, PREDICTION_WINDOW_HOURS, 24):
+    #         if (isRenewableSource is True):
+    #             yhat_sequence = getForecastsInRealTime(model, tempHistory, 
+    #                         numFeatures, weatherData[j:j+24])
+    #         else:
+    #             yhat_sequence = getForecastsInRealTime(model, tempHistory, 
+    #                         numFeatures, weatherData[j:j+24, :5])
+    #         # add current prediction to history for predicting the next day
+    #         if (j==0 and partialSourceProductionForecast is not None):
+    #             for k in range(24):
+    #                 yhat_sequence[k] = partialSourceProductionForecast[currentDayHours+k]
+    #         dayAheadPredictions.extend(yhat_sequence)
+    #         for k in range(24):
+    #             tempHistory[k] = yhat_sequence[k]
+    #     # get real observation and add to history for predicting the next day
+    #     history.extend(testData[currentDayHours:currentDayHours+MODEL_SLIDING_WINDOW_LEN, :].tolist())
+    #     predictions.append(dayAheadPredictions)
+    #     if (wTestData is not None):
+    #         weatherData = wTestData[weatherIdx:weatherIdx+PREDICTION_WINDOW_HOURS, :]
+    #         weatherIdx +=PREDICTION_WINDOW_HOURS
+
+    # # evaluate predictions days for each day
+    # predictedData = np.array(predictions, dtype=np.float64)
+    # return predictedData
 
 
 def getForecasts(model, history, numFeatures, weatherData):
     global TRAINING_WINDOW_HOURS
+
+    #debugging
+    # for i, h in enumerate(history[:10]):
+    #     print(f"{i:2d} – type: {type(h)}, ",
+    #         "len:" if hasattr(h, "__len__") else "",
+    #         getattr(h, "__len__",  lambda: None)())
+
+    # ——— SANITY-CHECK & UNIFORMIZE history ———
+    processed = []
+    for i, item in enumerate(history):
+        if isinstance(item, (pd.DataFrame, pd.Series)):
+            arr = item.values.astype(np.float64)
+        else:
+            arr = np.asarray(item, dtype=np.float64)
+        if arr.ndim != 1:
+            arr = arr.ravel()
+        processed.append(arr)
+
+    # ensure they’re all the same length
+    lengths = [a.shape[0] for a in processed]
+    if len(set(lengths)) != 1:
+        raise ValueError(f"history entries have mismatched lengths: {lengths}")
+    
+    # now stack into a 2D array
+    data = np.vstack(processed)  # shape = (n_steps, n_features)
+
+
     # flatten data
-    data = np.array(history, dtype=np.float64)
+    # data = np.array(history, dtype=np.float64)
+      
+    # if isinstance(history, (pd.DataFrame, pd.Series)):
+    #     # Convert DataFrame to numpy array properly
+    #     data = history.values.astype(np.float64)
+    # elif isinstance(history, list):
+    #     # If it's a list of DataFrames or mixed objects
+    #     processed_history = []
+    #     for item in history:
+    #         if isinstance(item, (pd.DataFrame, pd.Series)):
+    #             # Extract numeric values from each DataFrame
+    #             processed_history.append(item.values.astype(np.float64))
+    #         elif isinstance(item, (list, tuple, np.ndarray)):
+    #             # If it's already a numeric sequence
+    #             processed_history.append(np.array(item, dtype=np.float64))
+    #         else:
+    #             # Skip or handle non-compatible items
+    #             print(f"Skipping incompatible item type: {type(item)}")
+        
+    #     # Now ensure all arrays have the same shape
+    #     # Find the most common shape
+    #     shapes = [arr.shape for arr in processed_history if hasattr(arr, 'shape')]
+    #     if not shapes:
+    #         raise ValueError("No valid data found in history")
+            
+    #     # Convert all arrays to the same shape (if needed)
+    #     uniform_history = []
+    #     for arr in processed_history:
+    #         if hasattr(arr, 'shape') and arr.shape == shapes[0]:
+    #             uniform_history.append(arr)
+        
+    #     # Now convert to a numpy array
+    #     data = np.array(uniform_history, dtype=np.float64)
+    # else:
+    #     # Try direct conversion for other types
+    #     data = np.array(history, dtype=np.float64)
+    # data = np.stack([
+    # h.to_numpy().reshape(-1) if isinstance(h, pd.DataFrame)
+    #     else (h.to_numpy() if isinstance(h, pd.Series)
+    #         else np.array(h).reshape(-1))
+    #     for h in history
+    # ], axis=0).astype(np.float64)
     # retrieve last observations for input data
     input_x = data[-TRAINING_WINDOW_HOURS:]
     if (weatherData is not None):
@@ -645,16 +771,51 @@ def getForecasts(model, history, numFeatures, weatherData):
 def getForecastsInRealTime(model, history, numFeatures, weatherData):
     global TRAINING_WINDOW_HOURS
     # flatten data
-    data = np.array(history, dtype=np.float64)
-    data = np.reshape(data, (data.shape[0], 1))
-    # retrieve last observations for input data
-    input_x = data[-TRAINING_WINDOW_HOURS:]
-    if (weatherData is not None):
-        input_x = np.append(input_x, weatherData, axis=1)
-    # reshape into [1, n_input, num_features]
-    input_x = input_x.reshape((1, len(input_x), numFeatures))
-    yhat = model.predict(input_x, verbose=0)
-    yhat = yhat[0]
+    # data = np.array(history, dtype=np.float64)
+    # data = np.reshape(data, (data.shape[0], 1))
+    # # retrieve last observations for input data
+    # input_x = data[-TRAINING_WINDOW_HOURS:]
+    # if (weatherData is not None):
+    #     input_x = np.append(input_x, weatherData, axis=1)
+        # ——— SANITY-CHECK & UNIFORMIZE history ———
+
+    # # now stack into a 2D array
+    # data = np.vstack(processed)  # shape = (n_steps, n_features)
+
+    # # reshape into [1, n_input, num_features]
+    # input_x = input_x.reshape((1, len(input_x), numFeatures))
+    # yhat = model.predict(input_x, verbose=0)
+    # yhat = yhat[0]
+    # return yhat
+
+    # ——— 1) Turn history into a uniform 2D float array ———
+
+    # now all arr.shape == (L,), so shape[0] is always valid
+    processed = [
+        np.asarray(item, dtype=np.float64).ravel()
+        for item in history
+    ]
+    # All entries must now be 1-D, so shape[0] always exists
+    lengths = [arr.shape[0] for arr in processed]
+    if len(set(lengths)) != 1:
+        raise ValueError(f"history entries have mismatched lengths: {lengths}")
+    # Stack into a (n_steps × feature_dim) array
+    data = np.vstack(processed)
+
+    
+    # ——— 2) Slice out the last TRAINING_WINDOW_HOURS rows ———
+    input_x = data[-TRAINING_WINDOW_HOURS:, :]
+
+    # ——— 3) If there’s weather data, append it as new columns ———
+    if weatherData is not None:
+        # make sure weatherData is a 2D array of shape (TRAINING_WINDOW_HOURS, n_weather_feats)
+        input_x = np.concatenate([input_x, weatherData], axis=1)
+
+    # ——— 4) Finally reshape to (1, time_steps, total_features) ———
+    input_x = input_x.reshape((1, input_x.shape[0], numFeatures))
+
+    # ——— 5) Predict and return only the forecast vector ———
+    yhat = model.predict(input_x, verbose=0)[0]
     return yhat
 
 def getANNHyperParams(firstTierConfig):
@@ -710,27 +871,18 @@ def writeSourceProductionForecastsToFile(formattedTestDates, unscaledTestData, u
 def writeRealTimeSourceProductionForecastsToFile(formattedTestDates, unscaledPredictedData,
                                         source, outFileName, creationTimeInUTC, version):
     data = []
-    for i in range(len(unscaledPredictedData)):
-        row = []
-        row.append(str(formattedTestDates[i]))
-        row.append(creationTimeInUTC)
-        row.append(version)
-        row.append(str(unscaledPredictedData[i]))
-        data.append(row)
-    print("Writing to ", outFileName, "...")
-    fields = ["datetime", "creation_time (UTC)", "version", "avg_"+source.lower()+"_production_forecast"] # TODO:[DM] Change this & legacy code to UTC time later if required
-    with open(outFileName, "w") as csvfile: 
-        csvwriter = csv.writer(csvfile)   
-        csvwriter.writerow(fields) 
-        csvwriter.writerows(data)
+    for date, forecast in zip(formattedTestDates, unscaledPredictedData):
+        data.append([str(date), creationTimeInUTC, version, str(forecast)])
+    if len(unscaledPredictedData) > len(formattedTestDates):
+        extra = len(unscaledPredictedData) - len(formattedTestDates)
+        print(f"Warning: {extra} extra forecast entries without corresponding dates; ignoring extras.")
+    print("Writing to", outFileName, "...")
+    fields = [
+        "datetime", "creation_time (UTC)", "version",
+        f"avg_{source.lower()}_production_forecast"
+    ]
+    with open(outFileName, "w", newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(fields)
+        writer.writerows(data)
     return
-
-if __name__ == "__main__":
-    print("CarbonCast first tier. Refer github repo for regions & sources.")
-    if (len(sys.argv) !=2):
-        print("Usage: python3 firstTierForecasts.py <configFileName>")
-        print("")
-        exit(0)
-    configFileName = sys.argv[1]
-    runFirstTier(configFileName)
-    print("End")

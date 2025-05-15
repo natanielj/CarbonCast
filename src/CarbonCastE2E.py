@@ -47,7 +47,7 @@ US_REGIONS = [
     "AECI", 
     # "AVA", 
     # "AVRN", 
-    "BANC", 
+    # "BANC", # weather data folder not created
     # "CHPD", 
     "CISO", 
     # "CPLW",
@@ -55,8 +55,8 @@ US_REGIONS = [
     # "DOPD", 
     # "FMPP", 
     "FPL", 
-    "GCPD", 
-    "GRID",
+    # "GCPD", # weather data folder not created
+    # "GRID", # weather data folder not created
     # "GVL", 
     # "GWA", 
     # "HGMA", 
@@ -67,22 +67,22 @@ US_REGIONS = [
     "NWMT", 
     "NYIS", 
     "PACE", 
-    "PACW", 
+    # "PACW", # weather data folder not created
     "PJM", 
-    "PSCO",
-    "PSEI", 
+    # "PSCO", # weather data folder not created
+    # "PSEI", # weather data folder not created
     "SC", 
     "SCEG", 
-    "SCL", 
+    # "SCL", # weather data folder not created
     # "SEC", 
     # "SEPA", 
-    "SPA", 
-    "SWPP",
+    # "SPA", # weather data folder not created
+    # "SWPP", # weather data folder not created
     # "TAL",  
     "TIDC", 
-    "TPWR",  
-    "WACM", 
-    "WALC", 
+    # "TPWR",  # weather data folder not created
+    # "WACM",  # model gives error for this region, fix later
+    # "WALC", # weather data folder not created
     # "WAUW", 
     # "WWA"
 ]  # add US regions here
